@@ -9,3 +9,4 @@ factory/projects/*
 config.json
 .env
 *.log
+littlecoder-v*.zip
