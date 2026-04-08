@@ -74,6 +74,55 @@ function normalizeTaskText(task) {
     .replace(/\s+/g, " ");
 }
 
+function createQuickReply(taskInput) {
+  const normalized = normalizeTaskText(taskInput);
+  if (!normalized) {
+    return {
+      message: [
+        "LittleCoder is ready.",
+        "",
+        "Try one of these build tasks:",
+        "- create a simple website",
+        "- create a todo website",
+        "- create a personal portfolio",
+        "- create a calculator webpage",
+        "- create a landing page",
+      ].join("\n"),
+    };
+  }
+
+  const greetings = new Set([
+    "hi",
+    "hello",
+    "hey",
+    "yo",
+    "hola",
+    "help",
+    "start",
+    "hello littlecoder",
+    "hi littlecoder",
+    "what can you do",
+    "what do you do",
+  ]);
+
+  if (!greetings.has(normalized)) {
+    return null;
+  }
+
+  return {
+    message: [
+      "LittleCoder is ready to build inside the factory workspace.",
+      "",
+      "Try one of these tasks:",
+      "- create a simple website",
+      "- create a todo website",
+      "- create a personal portfolio",
+      "- create a calculator webpage",
+      "- create a landing page",
+    ].join("\n"),
+  };
+}
+
 function slugifyProjectName(value) {
   return String(value || "website")
     .trim()
@@ -867,6 +916,30 @@ class AgentEngine {
       input: typeof task.input === "string" ? task.input : JSON.stringify(task.input),
       source: task.source,
     });
+
+    const quickReply = createQuickReply(task.input);
+    if (quickReply) {
+      this.updateTask(task, {
+        status: TASK_STATES.SUCCEEDED,
+        resultSummary: quickReply.message,
+        error: null,
+      });
+
+      this.emitTask("task.done", {
+        taskId: task.id,
+        output: quickReply.message,
+        activeProject: this.memory.currentProject,
+      });
+
+      return {
+        taskId: task.id,
+        status: TASK_STATES.SUCCEEDED,
+        attempts: 0,
+        output: quickReply.message,
+        plan: null,
+        activeProject: this.memory.currentProject,
+      };
+    }
 
     while (task.attempts <= task.maxRetries) {
       try {
