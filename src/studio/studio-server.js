@@ -34,7 +34,7 @@ function studioHtml() {
     }
     .layout {
       display: grid;
-      grid-template-columns: 240px 1fr 340px;
+      grid-template-columns: 240px 1fr 380px;
       grid-template-rows: 88px 1fr 220px;
       grid-template-areas:
         "top top top"
@@ -150,8 +150,8 @@ function studioHtml() {
       box-shadow: 0 0 0 6px rgba(47, 143, 78, 0.12);
     }
     .chat-shell {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-rows: auto auto minmax(180px, 1fr) auto auto;
       height: calc(100% - 45px);
       padding: 12px;
       gap: 12px;
@@ -166,6 +166,23 @@ function studioHtml() {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(191, 95, 47, 0.06);
+    }
+    .mode-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .mode-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--soft);
     }
     .mode-buttons {
       display: flex;
@@ -186,11 +203,29 @@ function studioHtml() {
       background: var(--accent);
       color: white;
       border-color: var(--accent);
+      box-shadow: 0 8px 18px rgba(191, 95, 47, 0.18);
+    }
+    .mode-status {
+      font-size: 12px;
+      color: var(--ink);
+      font-weight: bold;
     }
     .mode-hint {
       font-size: 12px;
       color: var(--soft);
       line-height: 1.4;
+    }
+    .chat-box {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .section-label {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--soft);
     }
     .suggestions {
       display: flex;
@@ -217,6 +252,9 @@ function studioHtml() {
       display: flex;
       flex-direction: column;
       gap: 10px;
+      min-height: 180px;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     .chat-empty {
       color: var(--soft);
@@ -229,6 +267,8 @@ function studioHtml() {
       white-space: pre-wrap;
       font-size: 13px;
       line-height: 1.45;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .message.user {
       align-self: flex-end;
@@ -257,6 +297,8 @@ function studioHtml() {
       border-radius: 12px;
       padding: 10px 12px;
       background: rgba(191, 95, 47, 0.04);
+      max-height: 180px;
+      overflow: auto;
     }
     .activity-box h3 {
       margin: 0 0 8px;
@@ -376,11 +418,25 @@ function studioHtml() {
       </div>
       <div class="chat-shell">
         <div class="mode-strip">
-          <div id="chatModeControls" class="mode-buttons"></div>
+          <div class="mode-toolbar">
+            <span class="mode-label">Conversation Mode</span>
+            <div id="chatModeControls" class="mode-buttons">
+              <button class="mode-btn" data-mode-btn="chat" type="button">Chat</button>
+              <button class="mode-btn" data-mode-btn="build" type="button">Build</button>
+              <button class="mode-btn" data-mode-btn="auto" type="button">Auto</button>
+            </div>
+          </div>
+          <div id="chatModeStatus" class="mode-status">Mode: Auto</div>
           <div id="chatModeHint" class="mode-hint"></div>
         </div>
-        <div id="chatSuggestions" class="suggestions"></div>
-        <div id="chatMessages" class="chat-messages"></div>
+        <div>
+          <div class="section-label">Quick Tasks</div>
+          <div id="chatSuggestions" class="suggestions"></div>
+        </div>
+        <div class="chat-box">
+          <div class="section-label">Conversation</div>
+          <div id="chatMessages" class="chat-messages"></div>
+        </div>
         <div class="activity-box">
           <h3>Recent Activity</h3>
           <div id="recentActivity"></div>
@@ -393,11 +449,12 @@ function studioHtml() {
     </div>
   </div>
   <script>
+    const MODE_STORAGE_KEY = "littlecoder.chatMode";
     const state = {
       selectedFile: "",
       sending: false,
       mode: "auto",
-      visualMode: ""
+      lastAutoRoute: ""
     };
 
     function renderTree(nodes, activePath, parentPath = "") {
@@ -451,11 +508,19 @@ function studioHtml() {
       }).join("");
     }
 
-    function visibleMode() {
-      return state.visualMode || state.mode;
+    function selectedModeLabel() {
+      return state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
     }
 
-    function modeDescription() {
+    function routedMode(snapshot) {
+      if (snapshot && snapshot.currentTask && snapshot.currentTask.requestedMode === "auto") {
+        return snapshot.currentTask.resolvedMode || "";
+      }
+
+      return state.lastAutoRoute || "";
+    }
+
+    function modeDescription(snapshot) {
       if (state.mode === "chat") {
         return "Chat mode talks with the local model without executing tools.";
       }
@@ -464,28 +529,45 @@ function studioHtml() {
         return "Build mode executes real work inside the factory workspace.";
       }
 
-      if (state.visualMode === "build") {
-        return "Auto switched this message into Build mode and started execution.";
+      const routed = routedMode(snapshot);
+      if (routed === "build") {
+        return "Auto routed the latest message into Build mode and started execution.";
       }
 
-      if (state.visualMode === "chat") {
-        return "Auto switched this message into Chat mode and answered conversationally.";
+      if (routed === "chat") {
+        return "Auto routed the latest message into Chat mode and answered with the local model.";
       }
 
       return "Auto mode decides whether to chat or build for each message.";
     }
 
-    function renderModeButtons() {
-      return ["chat", "build", "auto"].map((mode) => {
-        const activeClass = visibleMode() === mode ? "mode-btn active" : "mode-btn";
-        const label = mode.charAt(0).toUpperCase() + mode.slice(1);
-        return "<button class='" + activeClass + "' data-mode-btn='" + mode + "' type='button'>" + label + "</button>";
-      }).join("");
+    function loadSavedMode() {
+      try {
+        const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
+        if (saved === "chat" || saved === "build" || saved === "auto") {
+          state.mode = saved;
+        }
+      } catch {}
     }
 
-    function updateModeUi() {
-      document.getElementById("chatModeControls").innerHTML = renderModeButtons();
-      document.getElementById("chatModeHint").textContent = modeDescription();
+    function saveMode() {
+      try {
+        window.localStorage.setItem(MODE_STORAGE_KEY, state.mode);
+      } catch {}
+    }
+
+    function updateModeUi(snapshot) {
+      document.querySelectorAll("[data-mode-btn]").forEach((button) => {
+        const mode = button.getAttribute("data-mode-btn");
+        button.className = mode === state.mode ? "mode-btn active" : "mode-btn";
+      });
+
+      const routed = routedMode(snapshot);
+      const statusText = state.mode === "auto" && routed
+        ? "Mode: Auto | Routed: " + routed.charAt(0).toUpperCase() + routed.slice(1)
+        : "Mode: " + selectedModeLabel();
+      document.getElementById("chatModeStatus").textContent = statusText;
+      document.getElementById("chatModeHint").textContent = modeDescription(snapshot);
     }
 
     function renderChat(history) {
@@ -532,7 +614,7 @@ function studioHtml() {
         ? (snapshot.currentTask.resolvedMode === "chat"
           ? "LittleCoder is replying in chat mode."
           : "Worker is executing your latest task.")
-        : modeDescription();
+        : modeDescription(snapshot);
       document.getElementById("workerStatus").textContent = workerStatus;
       document.getElementById("projectStatus").textContent = snapshot.currentProject || "none";
       document.getElementById("stepStatus").textContent = snapshot.currentStep || "waiting";
@@ -556,7 +638,7 @@ function studioHtml() {
       editorView.scrollTop = editorView.scrollHeight;
       terminalView.scrollTop = terminalView.scrollHeight;
       chatMessages.scrollTop = chatMessages.scrollHeight;
-      updateModeUi();
+      updateModeUi(snapshot);
     }
 
     async function submitChat(text) {
@@ -583,9 +665,9 @@ function studioHtml() {
         }
 
         if ((payload.requestedMode || state.mode) === "auto") {
-          state.visualMode = payload.resolvedMode || "";
+          state.lastAutoRoute = payload.resolvedMode || "";
         } else {
-          state.visualMode = "";
+          state.lastAutoRoute = "";
         }
         updateModeUi();
         input.value = "";
@@ -615,7 +697,8 @@ function studioHtml() {
       const modeButton = event.target.closest("[data-mode-btn]");
       if (!modeButton) return;
       state.mode = modeButton.getAttribute("data-mode-btn") || "auto";
-      state.visualMode = "";
+      state.lastAutoRoute = "";
+      saveMode();
       updateModeUi();
       document.getElementById("chatInput").focus();
     });
@@ -625,6 +708,7 @@ function studioHtml() {
       submitChat();
     });
 
+    loadSavedMode();
     updateModeUi();
   </script>
 </body>
