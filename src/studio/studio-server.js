@@ -167,11 +167,11 @@ function studioHtml() {
     }
     .chat-shell {
       display: grid;
-      grid-template-rows: auto auto minmax(180px, 1fr) auto auto;
+      grid-template-rows: auto minmax(120px, 1fr) auto auto;
       height: calc(100% - 45px);
       min-height: 0;
-      padding: 12px;
-      gap: 12px;
+      padding: 10px;
+      gap: 10px;
     }
     .channel-summary {
       font-size: 12px;
@@ -275,7 +275,7 @@ function studioHtml() {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      min-height: 180px;
+      min-height: 120px;
       overflow-y: auto;
       overflow-x: hidden;
     }
@@ -320,7 +320,7 @@ function studioHtml() {
       border-radius: 12px;
       padding: 10px 12px;
       background: rgba(191, 95, 47, 0.04);
-      max-height: 180px;
+      max-height: 96px;
       overflow: auto;
     }
     .activity-box h3 {
@@ -338,29 +338,40 @@ function studioHtml() {
     .activity-item:last-child { border-bottom: 0; }
     .chat-form {
       display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .composer-toolbar {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .composer-actions {
+      display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
       align-items: end;
     }
     .chat-form textarea {
       resize: none;
-      min-height: 74px;
-      max-height: 160px;
+      min-height: 56px;
+      max-height: 120px;
       border-radius: 12px;
       border: 1px solid var(--line);
-      padding: 12px;
+      padding: 10px 12px;
       font: inherit;
       background: #fffefb;
     }
     .chat-form button {
       border: 0;
       border-radius: 12px;
-      padding: 12px 16px;
+      padding: 10px 16px;
       background: var(--accent);
       color: white;
       font: inherit;
       cursor: pointer;
-      min-width: 92px;
+      min-width: 84px;
     }
     .chat-form button[disabled] {
       opacity: 0.7;
@@ -456,18 +467,6 @@ function studioHtml() {
         <div id="channelSummary" class="channel-summary">Studio ready</div>
       </div>
       <div class="chat-shell">
-        <div class="mode-strip">
-          <div class="mode-toolbar">
-            <span class="mode-label">Conversation Mode</span>
-            <div id="chatModeControls" class="mode-buttons">
-              <button class="mode-btn" data-mode-btn="chat" type="button">Chat</button>
-              <button class="mode-btn" data-mode-btn="build" type="button">Build</button>
-              <button class="mode-btn" data-mode-btn="auto" type="button">Auto</button>
-            </div>
-          </div>
-          <div id="chatModeStatus" class="mode-status">Mode: Auto</div>
-          <div id="chatModeHint" class="mode-hint"></div>
-        </div>
         <div>
           <div class="section-label">Quick Tasks</div>
           <div id="chatSuggestions" class="suggestions"></div>
@@ -476,14 +475,30 @@ function studioHtml() {
           <div class="section-label">Conversation</div>
           <div id="chatMessages" class="chat-messages"></div>
         </div>
+        <form id="chatForm" class="chat-form">
+          <div class="composer-toolbar">
+            <div class="mode-strip">
+              <div class="mode-toolbar">
+                <span class="mode-label">Conversation Mode</span>
+                <div id="chatModeControls" class="mode-buttons">
+                  <button class="mode-btn" data-mode-btn="chat" type="button">Chat</button>
+                  <button class="mode-btn" data-mode-btn="build" type="button">Build</button>
+                  <button class="mode-btn" data-mode-btn="auto" type="button">Auto</button>
+                </div>
+              </div>
+              <div id="chatModeStatus" class="mode-status">Mode: Auto</div>
+              <div id="chatModeHint" class="mode-hint"></div>
+            </div>
+          </div>
+          <div class="composer-actions">
+            <textarea id="chatInput" placeholder="Type a task for LittleCoder...">create a simple website</textarea>
+            <button id="chatSend" type="submit">Send</button>
+          </div>
+        </form>
         <div class="activity-box">
           <h3>Recent Activity</h3>
           <div id="recentActivity"></div>
         </div>
-        <form id="chatForm" class="chat-form">
-          <textarea id="chatInput" placeholder="Type a task for LittleCoder...">create a simple website</textarea>
-          <button id="chatSend" type="submit">Send</button>
-        </form>
       </div>
     </div>
   </div>
