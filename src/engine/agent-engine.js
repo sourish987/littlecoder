@@ -30,6 +30,7 @@ function ollamaGenerateUrl(rawUrl) {
 }
 
 function buildPlannerPrompt(task, memory) {
+  const profile = inferWebsiteTaskProfile(task);
   return `You are LittleCoder, a single AI software factory worker.
 Return JSON only.
 Do not wrap the JSON in markdown code fences.
@@ -60,8 +61,528 @@ Output schema:
   ]
 }
 
+${taskSpecificPlannerGuidance(profile)}
+
 Task:
 ${task}`;
+}
+
+function normalizeTaskText(task) {
+  return String(task || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function slugifyProjectName(value) {
+  return String(value || "website")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "website";
+}
+
+function inferWebsiteTaskProfile(task) {
+  const normalized = normalizeTaskText(task);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes("todo website")) {
+    return {
+      type: "todo",
+      projectName: "todo-website",
+      label: "todo website",
+      requiredFiles: ["index.html", "style.css", "script.js"],
+    };
+  }
+
+  if (normalized.includes("calculator webpage") || normalized.includes("calculator website")) {
+    return {
+      type: "calculator",
+      projectName: "calculator-webpage",
+      label: "calculator webpage",
+      requiredFiles: ["index.html", "style.css", "script.js"],
+    };
+  }
+
+  if (normalized.includes("personal portfolio")) {
+    return {
+      type: "portfolio",
+      projectName: "personal-portfolio",
+      label: "personal portfolio website",
+      requiredFiles: ["index.html", "style.css", "script.js"],
+    };
+  }
+
+  if (normalized.includes("landing page")) {
+    return {
+      type: "landing",
+      projectName: "landing-page",
+      label: "landing page",
+      requiredFiles: ["index.html", "style.css", "script.js"],
+    };
+  }
+
+  if (normalized.includes("simple website") || normalized.includes("website")) {
+    return {
+      type: "simple",
+      projectName: "simple-website",
+      label: "simple website",
+      requiredFiles: ["index.html", "style.css", "script.js"],
+    };
+  }
+
+  return null;
+}
+
+function taskSpecificPlannerGuidance(profile) {
+  if (!profile) {
+    return "";
+  }
+
+  const lines = [
+    "Website task guidance:",
+    `- This task is a ${profile.label}.`,
+    `- Prefer project name "${profile.projectName}".`,
+    `- Create these files unless the task clearly needs fewer: ${profile.requiredFiles.join(", ")}.`,
+    "- Use semantic HTML and responsive CSS.",
+    "- For interactive pages, put behavior in script.js.",
+    "- Write complete file contents. Do not leave TODO placeholders.",
+    "- Do not reference files outside the project.",
+  ];
+
+  if (profile.type === "todo") {
+    lines.push("- The website must support adding, completing, and deleting tasks.");
+  }
+
+  if (profile.type === "calculator") {
+    lines.push("- The calculator must support basic operations and clear/reset.");
+  }
+
+  if (profile.type === "portfolio") {
+    lines.push("- Include hero, about, projects, and contact sections.");
+  }
+
+  if (profile.type === "landing") {
+    lines.push("- Include hero, features, social proof, and a clear call to action.");
+  }
+
+  return lines.join("\n");
+}
+
+function simpleWebsiteFiles() {
+  return {
+    "index.html": [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>Simple Website</title>",
+      '  <link rel="stylesheet" href="style.css" />',
+      "</head>",
+      "<body>",
+      '  <main class="shell">',
+      '    <section class="hero">',
+      '      <p class="eyebrow">LittleCoder</p>',
+      "      <h1>Build something clear, fast, and delightful.</h1>",
+      "      <p>This starter site gives you a polished hero, feature cards, and a friendly call to action.</p>",
+      '      <button id="ctaButton" class="cta">See the message</button>',
+      '      <p id="ctaMessage" class="message">Ready when you are.</p>',
+      "    </section>",
+      '    <section class="grid">',
+      '      <article class="card"><h2>Simple</h2><p>Readable layout with strong spacing and structure.</p></article>',
+      '      <article class="card"><h2>Visible</h2><p>Easy to expand as you keep building in Studio.</p></article>',
+      '      <article class="card"><h2>Local</h2><p>Works as a lightweight static website starter.</p></article>',
+      "    </section>",
+      "  </main>",
+      '  <script src="script.js"></script>',
+      "</body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "style.css": [
+      ":root {",
+      "  color-scheme: light;",
+      "  --bg: #f4efe6;",
+      "  --panel: #fffdf8;",
+      "  --ink: #1f1a17;",
+      "  --accent: #bf5f2f;",
+      "  --line: #d8c9b5;",
+      "}",
+      "* { box-sizing: border-box; }",
+      "body {",
+      "  margin: 0;",
+      "  font-family: Georgia, 'Times New Roman', serif;",
+      "  background: radial-gradient(circle at top, #fff5dd, var(--bg));",
+      "  color: var(--ink);",
+      "}",
+      ".shell { max-width: 980px; margin: 0 auto; padding: 48px 20px 72px; }",
+      ".hero { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 36px; box-shadow: 0 18px 40px rgba(62, 37, 17, 0.08); }",
+      ".eyebrow { letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-size: 12px; }",
+      "h1 { margin: 0 0 12px; font-size: clamp(2.4rem, 6vw, 4.4rem); line-height: 0.95; }",
+      ".hero p { font-size: 1.05rem; max-width: 58ch; }",
+      ".cta { margin-top: 16px; padding: 12px 18px; border: 0; border-radius: 999px; background: var(--accent); color: white; font: inherit; cursor: pointer; }",
+      ".message { min-height: 24px; color: #7b5e45; }",
+      ".grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 22px; }",
+      ".card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }",
+      "@media (max-width: 720px) { .hero { padding: 24px; } }",
+      "",
+    ].join("\n"),
+    "script.js": [
+      "const button = document.getElementById('ctaButton');",
+      "const message = document.getElementById('ctaMessage');",
+      "",
+      "if (button && message) {",
+      "  button.addEventListener('click', () => {",
+      "    message.textContent = 'LittleCoder says: your simple website is ready to grow.';",
+      "  });",
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function todoWebsiteFiles() {
+  return {
+    "index.html": [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>Todo Website</title>",
+      '  <link rel="stylesheet" href="style.css" />',
+      "</head>",
+      "<body>",
+      '  <main class="shell">',
+      "    <h1>Todo Website</h1>",
+      "    <p>Keep the day clear with a simple task list.</p>",
+      '    <form id="todoForm" class="composer">',
+      '      <input id="todoInput" type="text" placeholder="Add a task" autocomplete="off" />',
+      '      <button type="submit">Add</button>',
+      "    </form>",
+      '    <ul id="todoList" class="todo-list"></ul>',
+      "  </main>",
+      '  <script src="script.js"></script>',
+      "</body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "style.css": [
+      ":root { --bg: #f4efe6; --panel: #fffdf8; --ink: #1f1a17; --accent: #bf5f2f; --line: #d8c9b5; }",
+      "* { box-sizing: border-box; }",
+      "body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: var(--bg); color: var(--ink); }",
+      ".shell { max-width: 720px; margin: 0 auto; padding: 48px 20px 72px; }",
+      ".composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin: 20px 0; }",
+      "input, button { font: inherit; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); }",
+      "button { background: var(--accent); color: white; cursor: pointer; border: 0; }",
+      ".todo-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }",
+      ".todo-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }",
+      ".todo-item.done .todo-text { text-decoration: line-through; color: #7b5e45; }",
+      ".ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }",
+      "",
+    ].join("\n"),
+    "script.js": [
+      "const form = document.getElementById('todoForm');",
+      "const input = document.getElementById('todoInput');",
+      "const list = document.getElementById('todoList');",
+      "let items = [];",
+      "",
+      "function render() {",
+      "  list.innerHTML = '';",
+      "  for (const item of items) {",
+      "    const li = document.createElement('li');",
+      "    li.className = `todo-item${item.done ? ' done' : ''}`;",
+      "    li.innerHTML = `",
+      "      <input type=\"checkbox\" ${item.done ? 'checked' : ''} />",
+      "      <span class=\"todo-text\"></span>",
+      "      <button class=\"ghost\" type=\"button\">Delete</button>",
+      "    `;",
+      "    li.querySelector('.todo-text').textContent = item.text;",
+      "    li.querySelector('input').addEventListener('change', () => {",
+      "      item.done = !item.done;",
+      "      render();",
+      "    });",
+      "    li.querySelector('button').addEventListener('click', () => {",
+      "      items = items.filter((entry) => entry !== item);",
+      "      render();",
+      "    });",
+      "    list.appendChild(li);",
+      "  }",
+      "}",
+      "",
+      "form.addEventListener('submit', (event) => {",
+      "  event.preventDefault();",
+      "  const text = input.value.trim();",
+      "  if (!text) return;",
+      "  items.unshift({ text, done: false });",
+      "  input.value = '';",
+      "  render();",
+      "});",
+      "",
+      "render();",
+      "",
+    ].join("\n"),
+  };
+}
+
+function portfolioWebsiteFiles() {
+  return {
+    "index.html": [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>Personal Portfolio</title>",
+      '  <link rel="stylesheet" href="style.css" />',
+      "</head>",
+      "<body>",
+      '  <header class="shell hero">',
+      "    <p class=\"eyebrow\">Personal Portfolio</p>",
+      "    <h1>Hi, I build thoughtful digital experiences.</h1>",
+      "    <p class=\"lede\">This starter portfolio includes an intro, featured work, and a simple contact section.</p>",
+      '    <a class="cta" href="#projects">View Projects</a>',
+      "  </header>",
+      '  <main class="shell stack">',
+      '    <section id="about" class="panel"><h2>About</h2><p>I care about clean interfaces, helpful tools, and products people actually enjoy using.</p></section>',
+      '    <section id="projects" class="panel"><h2>Projects</h2><div class="grid"><article class="card"><h3>Studio UI</h3><p>A visible AI workflow interface.</p></article><article class="card"><h3>Factory Workspace</h3><p>A safe place for generated code.</p></article><article class="card"><h3>Automation Tools</h3><p>Focused tools for fast iteration.</p></article></div></section>',
+      '    <section id="contact" class="panel"><h2>Contact</h2><p>Say hello and start a conversation about your next product.</p><button id="contactButton" class="cta">Reveal email</button><p id="contactText" class="contact-text"></p></section>',
+      "  </main>",
+      '  <script src="script.js"></script>',
+      "</body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "style.css": [
+      ":root { --bg: #f4efe6; --panel: #fffdf8; --ink: #1f1a17; --accent: #bf5f2f; --line: #d8c9b5; --soft: #7b5e45; }",
+      "* { box-sizing: border-box; }",
+      "html { scroll-behavior: smooth; }",
+      "body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: radial-gradient(circle at top, #fff5dd, var(--bg)); color: var(--ink); }",
+      ".shell { max-width: 960px; margin: 0 auto; padding: 28px 20px; }",
+      ".hero { padding-top: 52px; }",
+      ".eyebrow { letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; color: var(--accent); }",
+      "h1 { font-size: clamp(2.4rem, 7vw, 4.6rem); line-height: 0.95; margin: 0 0 14px; }",
+      ".lede { max-width: 58ch; color: var(--soft); }",
+      ".stack { display: grid; gap: 18px; padding-bottom: 64px; }",
+      ".panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 24px; box-shadow: 0 12px 30px rgba(62, 37, 17, 0.08); }",
+      ".grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }",
+      ".card { border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: rgba(191, 95, 47, 0.05); }",
+      ".cta { display: inline-block; margin-top: 12px; padding: 12px 18px; border: 0; border-radius: 999px; background: var(--accent); color: white; text-decoration: none; font: inherit; cursor: pointer; }",
+      ".contact-text { color: var(--soft); min-height: 22px; }",
+      "",
+    ].join("\n"),
+    "script.js": [
+      "const button = document.getElementById('contactButton');",
+      "const target = document.getElementById('contactText');",
+      "",
+      "if (button && target) {",
+      "  button.addEventListener('click', () => {",
+      "    target.textContent = 'hello@portfolio.dev';",
+      "  });",
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function calculatorWebsiteFiles() {
+  return {
+    "index.html": [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>Calculator Webpage</title>",
+      '  <link rel="stylesheet" href="style.css" />',
+      "</head>",
+      "<body>",
+      '  <main class="shell">',
+      "    <h1>Calculator</h1>",
+      '    <section class="calculator">',
+      '      <div id="display" class="display">0</div>',
+      '      <div class="keys">',
+      '        <button data-action="clear">C</button>',
+      '        <button data-value="(">(</button>',
+      '        <button data-value=")">)</button>',
+      '        <button data-value="/">/</button>',
+      '        <button data-value="7">7</button>',
+      '        <button data-value="8">8</button>',
+      '        <button data-value="9">9</button>',
+      '        <button data-value="*">*</button>',
+      '        <button data-value="4">4</button>',
+      '        <button data-value="5">5</button>',
+      '        <button data-value="6">6</button>',
+      '        <button data-value="-">-</button>',
+      '        <button data-value="1">1</button>',
+      '        <button data-value="2">2</button>',
+      '        <button data-value="3">3</button>',
+      '        <button data-value="+">+</button>',
+      '        <button data-value="0" class="wide">0</button>',
+      '        <button data-value=".">.</button>',
+      '        <button data-action="equals" class="accent">=</button>',
+      "      </div>",
+      "    </section>",
+      "  </main>",
+      '  <script src="script.js"></script>',
+      "</body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "style.css": [
+      ":root { --bg: #f4efe6; --panel: #fffdf8; --ink: #1f1a17; --accent: #bf5f2f; --line: #d8c9b5; }",
+      "* { box-sizing: border-box; }",
+      "body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #fff5dd, var(--bg)); font-family: Georgia, 'Times New Roman', serif; color: var(--ink); }",
+      ".shell { width: min(100%, 420px); padding: 20px; }",
+      ".calculator { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 18px; box-shadow: 0 16px 34px rgba(62, 37, 17, 0.08); }",
+      ".display { min-height: 74px; display: flex; align-items: center; justify-content: flex-end; padding: 14px; border-radius: 16px; background: #f9f3ea; border: 1px solid var(--line); font-size: 2rem; overflow: hidden; }",
+      ".keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }",
+      "button { border: 0; border-radius: 16px; padding: 16px; font: inherit; font-size: 1.1rem; cursor: pointer; background: #f0e4d6; color: var(--ink); }",
+      "button.wide { grid-column: span 2; }",
+      "button.accent { background: var(--accent); color: white; }",
+      "",
+    ].join("\n"),
+    "script.js": [
+      "const display = document.getElementById('display');",
+      "const keys = document.querySelector('.keys');",
+      "let expression = '0';",
+      "",
+      "function render() {",
+      "  display.textContent = expression || '0';",
+      "}",
+      "",
+      "function evaluateExpression() {",
+      "  try {",
+      "    const result = Function(`return (${expression})`)();",
+      "    expression = String(result);",
+      "  } catch {",
+      "    expression = 'Error';",
+      "  }",
+      "  render();",
+      "}",
+      "",
+      "keys.addEventListener('click', (event) => {",
+      "  const button = event.target.closest('button');",
+      "  if (!button) return;",
+      "  const action = button.dataset.action;",
+      "  const value = button.dataset.value;",
+      "  if (action === 'clear') { expression = '0'; render(); return; }",
+      "  if (action === 'equals') { evaluateExpression(); return; }",
+      "  expression = expression === '0' || expression === 'Error' ? value : expression + value;",
+      "  render();",
+      "});",
+      "",
+      "render();",
+      "",
+    ].join("\n"),
+  };
+}
+
+function landingPageFiles() {
+  return {
+    "index.html": [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>Landing Page</title>",
+      '  <link rel="stylesheet" href="style.css" />',
+      "</head>",
+      "<body>",
+      '  <main class="shell">',
+      '    <section class="hero">',
+      '      <p class="eyebrow">Launch Faster</p>',
+      "      <h1>Turn your next idea into a polished page.</h1>",
+      "      <p>A clean landing page starter with hero content, feature cards, proof points, and a strong call to action.</p>",
+      '      <a class="cta" href="#contact">Start now</a>',
+      "    </section>",
+      '    <section class="panel grid">',
+      '      <article class="card"><h2>Fast</h2><p>Built to communicate value quickly.</p></article>',
+      '      <article class="card"><h2>Focused</h2><p>Simple sections that are easy to customize.</p></article>',
+      '      <article class="card"><h2>Trusted</h2><p>Designed to feel clear and credible.</p></article>',
+      "    </section>",
+      '    <section class="panel stats"><div><strong>10x</strong><span>Faster drafts</span></div><div><strong>24/7</strong><span>Visible workflow</span></div><div><strong>Local</strong><span>Safe factory workspace</span></div></section>',
+      '    <section id="contact" class="panel"><h2>Ready to launch?</h2><p id="contactMessage">Click below to reveal the call to action.</p><button id="contactButton" class="cta" type="button">Show CTA</button></section>',
+      "  </main>",
+      '  <script src="script.js"></script>',
+      "</body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "style.css": [
+      ":root { --bg: #f4efe6; --panel: #fffdf8; --ink: #1f1a17; --accent: #bf5f2f; --line: #d8c9b5; --soft: #7b5e45; }",
+      "* { box-sizing: border-box; }",
+      "body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: var(--ink); background: radial-gradient(circle at top, #fff5dd, var(--bg)); }",
+      ".shell { max-width: 1024px; margin: 0 auto; padding: 48px 20px 72px; display: grid; gap: 18px; }",
+      ".hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 28px; box-shadow: 0 14px 30px rgba(62, 37, 17, 0.08); }",
+      ".eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--accent); }",
+      "h1 { margin: 0 0 12px; font-size: clamp(2.6rem, 7vw, 4.8rem); line-height: 0.95; }",
+      ".grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }",
+      ".card { padding: 18px; border-radius: 18px; border: 1px solid var(--line); background: rgba(191, 95, 47, 0.05); }",
+      ".stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center; }",
+      ".stats strong { display: block; font-size: 2rem; }",
+      ".stats span { color: var(--soft); }",
+      ".cta { display: inline-block; margin-top: 14px; padding: 12px 18px; border: 0; border-radius: 999px; background: var(--accent); color: white; text-decoration: none; font: inherit; cursor: pointer; }",
+      "@media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }",
+      "",
+    ].join("\n"),
+    "script.js": [
+      "const button = document.getElementById('contactButton');",
+      "const message = document.getElementById('contactMessage');",
+      "",
+      "if (button && message) {",
+      "  button.addEventListener('click', () => {",
+      "    message.textContent = 'Your landing page is live and ready for customization.';",
+      "  });",
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function fallbackWebsiteFiles(profile) {
+  if (!profile) {
+    return null;
+  }
+
+  if (profile.type === "todo") return todoWebsiteFiles();
+  if (profile.type === "calculator") return calculatorWebsiteFiles();
+  if (profile.type === "portfolio") return portfolioWebsiteFiles();
+  if (profile.type === "landing") return landingPageFiles();
+  return simpleWebsiteFiles();
+}
+
+function createSafeFallbackPlan(taskText) {
+  const profile = inferWebsiteTaskProfile(taskText);
+  if (!profile) {
+    return null;
+  }
+
+  const files = fallbackWebsiteFiles(profile);
+  const slug = slugifyProjectName(profile.projectName);
+  const steps = [
+    {
+      id: `fallback-${slug}-project`,
+      tool: "project-create",
+      input: { name: profile.projectName },
+    },
+  ];
+
+  let index = 0;
+  for (const [filePath, content] of Object.entries(files)) {
+    index += 1;
+    steps.push({
+      id: `fallback-${slug}-file-${index}`,
+      tool: "file-create",
+      input: { path: filePath, content },
+    });
+  }
+
+  return { steps };
 }
 
 function sanitizeJsonLikeText(text) {
@@ -198,6 +719,32 @@ function formatPlanningError(error) {
   return `Brain planning failed: ${message}`;
 }
 
+function plannerFailureCode(error) {
+  const message = String(error?.message || "");
+
+  if (
+    /Planner JSON must contain a "steps" array/i.test(message) ||
+    /Unexpected token/i.test(message) ||
+    /Planner response was not valid JSON/i.test(message)
+  ) {
+    return "PLANNER_OUTPUT_INVALID";
+  }
+
+  if (/timeout/i.test(message)) {
+    return "PLANNER_TIMEOUT";
+  }
+
+  if (/Could not reach|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+    return "PLANNER_UNAVAILABLE";
+  }
+
+  return "PLANNER_FAILURE";
+}
+
+function modelSwitchSuggestion() {
+  return "Suggested fix: switch to a coding-focused Ollama model like qwen2.5-coder, deepseek-coder, or codellama in setup.";
+}
+
 async function createPlan(taskInput, memory) {
   if (typeof taskInput === "object" && taskInput && Array.isArray(taskInput.steps)) {
     return taskInput;
@@ -229,9 +776,33 @@ async function createPlan(taskInput, memory) {
     );
 
     const raw = String(response?.data?.response || "").trim();
-    return parsePlanJson(raw);
+    try {
+      return parsePlanJson(raw);
+    } catch (parseError) {
+      const fallbackPlan = createSafeFallbackPlan(taskText);
+      if (fallbackPlan) {
+        studioEvents.emit("chat.message", {
+          id: crypto.randomUUID(),
+          role: "worker",
+          channel: "studio",
+          text: "Planner output was unusable, so LittleCoder switched to a safe built-in website fallback for this task.",
+          status: "done",
+        });
+        return fallbackPlan;
+      }
+
+      throw new RetryableTaskError(formatPlanningError(parseError), {
+        code: plannerFailureCode(parseError),
+      });
+    }
   } catch (error) {
-    throw new RetryableTaskError(formatPlanningError(error));
+    if (error instanceof TaskError) {
+      throw error;
+    }
+
+    throw new RetryableTaskError(formatPlanningError(error), {
+      code: plannerFailureCode(error),
+    });
   }
 }
 
@@ -244,7 +815,8 @@ class AgentEngine {
     this.memory = {
       currentProject: null,
       lastTaskId: null,
-    }
+      planningFailureStreak: 0,
+    };
   }
 
   createTask(input, source = "system") {
@@ -317,6 +889,7 @@ class AgentEngine {
         this.memory.currentProject =
           execution.context.activeProject || this.memory.currentProject;
         this.memory.lastTaskId = task.id;
+        this.memory.planningFailureStreak = 0;
 
         this.updateTask(task, {
           status: TASK_STATES.SUCCEEDED,
@@ -340,6 +913,15 @@ class AgentEngine {
       } catch (error) {
         const retryable = this.isRetryable(error);
         const canRetry = retryable && task.attempts <= task.maxRetries;
+        const planningFailure = String(error.code || "").startsWith("PLANNER_");
+
+        if (planningFailure) {
+          this.memory.planningFailureStreak += 1;
+
+          if (!canRetry && this.memory.planningFailureStreak >= 2) {
+            error.message = `${error.message} ${modelSwitchSuggestion()}`;
+          }
+        }
 
         this.updateTask(task, {
           status: canRetry ? TASK_STATES.RETRYING : TASK_STATES.FAILED,
