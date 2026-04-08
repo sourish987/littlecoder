@@ -1,14 +1,20 @@
 # LittleCoder v0.1.0
 
+![LittleCoder Banner](assets/littlecoder-banner.svg)
+
 ![Version](https://img.shields.io/badge/version-v0.1.0-bf5f2f)
 ![License](https://img.shields.io/badge/license-MIT-2f8f4e)
 ![Local First](https://img.shields.io/badge/local-first-1f1a17)
+![GitHub last commit](https://img.shields.io/github/last-commit/sourish987/littlecoder)
+![GitHub Repo stars](https://img.shields.io/github/stars/sourish987/littlecoder?style=social)
 
 Local AI Coding Worker with Visible Execution.
 
 Studio-first architecture.
 Sandboxed factory workspace.
 Remote execution streaming.
+
+If this project helps you, star the repo and share it. That genuinely helps LittleCoder get discovered.
 
 ## Overview
 
@@ -19,6 +25,18 @@ Core ideas:
 - Factory workspace protects the system
 - Visual execution shows what the worker is doing
 - Remote channels narrate execution progress
+
+## What Makes It Different
+
+LittleCoder is not trying to be an agent platform.
+
+It is a focused product:
+- one Worker
+- one queue
+- one safe factory workspace
+- one visible Studio experience
+
+That constraint is the point. It keeps the product understandable, stable, and easy to trust.
 
 ## Why LittleCoder
 
@@ -50,6 +68,13 @@ Then in Studio, try:
 - `create a personal portfolio`
 - `create a calculator webpage`
 - `create a landing page`
+
+## Who It Is For
+
+- makers who want a visible AI coding workflow
+- developers who prefer local-first tools
+- people who do not want black-box agent behavior
+- anyone who wants to watch software being created step by step
 
 ## Installation
 
@@ -131,6 +156,8 @@ If you want Telegram control, enable it during setup and enter:
 - your Telegram bot token
 - your owner Telegram chat ID
 
+Remote channels receive narrated execution progress so you are never left wondering what the Worker is doing.
+
 ## Studio
 
 Studio is the main control surface for LittleCoder.
@@ -158,6 +185,14 @@ What comes next:
 - stronger website generation quality
 - better remote channel support
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the short-term direction.
+
+## FAQ
+
+See [FAQ.md](FAQ.md) for common setup and product questions.
+
 ## Contributing
 
 Contributions are welcome. If you want to help:
@@ -172,3 +207,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project guidelines.
 If you find a security issue, please avoid posting secrets publicly in issues.
 
 See [SECURITY.md](SECURITY.md) for the reporting process.
+
+## Support
+
+Need help getting started? See [SUPPORT.md](SUPPORT.md).
