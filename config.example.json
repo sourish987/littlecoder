@@ -1,0 +1,56 @@
+{
+  "brain": {
+    "provider": "ollama",
+    "enabled": true,
+    "url": "http://localhost:11434",
+    "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+    "timeoutMs": 45000
+  },
+  "factory": {
+    "root": "factory/projects",
+    "exportEnabled": false,
+    "retentionMaxTasks": 200
+  },
+  "studio": {
+    "port": 3001,
+    "autoOpen": true
+  },
+  "executionMode": "headless",
+  "owner": {
+    "telegramId": "",
+    "phoneNumber": "",
+    "discordId": ""
+  },
+  "allowedUsers": {
+    "telegramIds": [],
+    "phoneNumbers": [],
+    "discordIds": []
+  },
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "token": "",
+      "ownerId": "",
+      "allowedUserIds": [],
+      "maxUnauthorizedErrors": 3
+    },
+    "whatsapp": {
+      "enabled": false,
+      "ownerNumber": "",
+      "allowedNumbers": []
+    },
+    "discord": {
+      "enabled": false,
+      "token": "",
+      "ownerId": "",
+      "allowedUserIds": []
+    }
+  },
+  "worker": {
+    "startTimeoutMs": 5000,
+    "stepTimeoutMs": 30000,
+    "maxRetries": 1,
+    "retryDelayMs": 1000,
+    "maxOutputChars": 20000
+  }
+}

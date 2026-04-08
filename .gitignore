@@ -1,0 +1,11 @@
+node_modules/
+logs/
+pids/
+workspace/
+factory/*
+!factory/projects/
+factory/projects/*
+!factory/projects/.gitkeep
+config.json
+.env
+*.log
