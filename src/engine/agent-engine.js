@@ -74,7 +74,61 @@ function normalizeTaskText(task) {
     .replace(/\s+/g, " ");
 }
 
-function createQuickReply(taskInput) {
+function normalizeInteractionMode(value) {
+  const normalized = normalizeTaskText(value);
+  if (normalized === "chat" || normalized === "build" || normalized === "auto") {
+    return normalized;
+  }
+
+  return "auto";
+}
+
+function isLikelyBuildIntent(taskInput) {
+  if (typeof taskInput === "object" && taskInput && Array.isArray(taskInput.steps)) {
+    return true;
+  }
+
+  const normalized = normalizeTaskText(taskInput);
+  if (!normalized) {
+    return false;
+  }
+
+  if (inferWebsiteTaskProfile(normalized)) {
+    return true;
+  }
+
+  const buildPatterns = [
+    /\b(create|build|make|generate|scaffold)\b/,
+    /\b(write|edit|update|modify|change|fix|refactor)\b/,
+    /\b(run|start|execute|install)\b/,
+    /\b(project|app|website|page|site|portfolio|calculator|todo)\b/,
+    /\b(file|files|html|css|javascript|js|server|api|component)\b/,
+  ];
+
+  return buildPatterns.some((pattern) => pattern.test(normalized));
+}
+
+function isLikelyChatIntent(taskInput) {
+  const normalized = normalizeTaskText(taskInput);
+  if (!normalized) {
+    return true;
+  }
+
+  const chatPatterns = [
+    /^(hi|hello|hey|yo|hola)\b/,
+    /\b(help|explain|brainstorm|discuss|guide|teach)\b/,
+    /\bwhat\b/,
+    /\bwhy\b/,
+    /\bhow\b/,
+    /\bcan you\b/,
+    /\bshould i\b/,
+    /\?$/,
+  ];
+
+  return chatPatterns.some((pattern) => pattern.test(normalized));
+}
+
+function createQuickReply(taskInput, mode = "auto") {
   const normalized = normalizeTaskText(taskInput);
   if (!normalized) {
     return {
@@ -91,36 +145,129 @@ function createQuickReply(taskInput) {
     };
   }
 
-  const greetings = new Set([
-    "hi",
-    "hello",
-    "hey",
-    "yo",
-    "hola",
-    "help",
-    "start",
-    "hello littlecoder",
-    "hi littlecoder",
-    "what can you do",
-    "what do you do",
-  ]);
-
-  if (!greetings.has(normalized)) {
-    return null;
+  if (mode === "build" && !isLikelyBuildIntent(normalized)) {
+    return {
+      message: [
+        "Build mode is for real execution inside the factory workspace.",
+        "",
+        "Switch to Chat mode to talk with the model, or Auto mode to let LittleCoder decide.",
+        "",
+        "Try one of these build tasks:",
+        "- create a simple website",
+        "- create a todo website",
+        "- create a personal portfolio",
+        "- create a calculator webpage",
+        "- create a landing page",
+      ].join("\n"),
+    };
   }
 
-  return {
-    message: [
-      "LittleCoder is ready to build inside the factory workspace.",
-      "",
-      "Try one of these tasks:",
-      "- create a simple website",
-      "- create a todo website",
-      "- create a personal portfolio",
-      "- create a calculator webpage",
-      "- create a landing page",
-    ].join("\n"),
-  };
+  return null;
+}
+
+async function generateModelText(prompt) {
+  const response = await axios.post(
+    ollamaGenerateUrl(config.brain.url),
+    {
+      model: config.brain.model,
+      prompt,
+      stream: false,
+    },
+    { timeout: config.brain.timeoutMs }
+  );
+
+  return String(response?.data?.response || "").trim();
+}
+
+function buildChatPrompt(message, memory) {
+  return `You are LittleCoder, a local AI coding worker speaking in Studio chat mode.
+Respond like a direct local model terminal chat response.
+Be helpful, clear, and concise.
+Do not pretend you executed anything in chat mode.
+If the user asks you to build or change files, explain that Build mode executes tasks and Auto mode can switch for them.
+
+Current project:
+${memory.currentProject || "none"}
+
+User message:
+${message}`;
+}
+
+function buildAutoModePrompt(message) {
+  return `You are deciding how LittleCoder should handle one user message.
+Return exactly one word:
+- BUILD
+- CHAT
+
+Choose BUILD only if the message is asking LittleCoder to create, edit, run, fix, or execute project work.
+Choose CHAT for greetings, questions, brainstorming, explanation, or normal conversation.
+
+Message:
+${message}`;
+}
+
+function formatChatFailure(error) {
+  const message = String(error?.message || "Local model response failed");
+
+  if (/timeout/i.test(message)) {
+    return "LittleCoder timed out while waiting for the local model. Make sure Ollama is running and try again.";
+  }
+
+  if (/Could not reach|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+    return "LittleCoder could not reach Ollama. Check that Ollama is running and the configured URL is correct.";
+  }
+
+  return `LittleCoder could not answer in chat mode right now: ${message}`;
+}
+
+async function createChatReply(taskInput, memory) {
+  const quickReply = createQuickReply(taskInput, "chat");
+  if (quickReply) {
+    return quickReply.message;
+  }
+
+  const taskText = String(taskInput || "").trim();
+  if (!taskText) {
+    return "LittleCoder is ready.";
+  }
+
+  if (!config.brain.enabled) {
+    return "Local model chat is disabled right now. Re-enable the brain in setup to talk with LittleCoder here.";
+  }
+
+  try {
+    const reply = await generateModelText(buildChatPrompt(taskText, memory));
+    return reply || "LittleCoder is ready. Ask a coding question or switch to Build mode to execute work.";
+  } catch (error) {
+    return formatChatFailure(error);
+  }
+}
+
+async function decideAutoMode(taskInput, memory) {
+  if (isLikelyBuildIntent(taskInput)) {
+    return "build";
+  }
+
+  if (isLikelyChatIntent(taskInput)) {
+    return "chat";
+  }
+
+  if (!config.brain.enabled) {
+    return "build";
+  }
+
+  try {
+    const raw = await generateModelText(buildAutoModePrompt(String(taskInput || "").trim(), memory));
+    const decision = normalizeTaskText(raw);
+    if (decision.includes("build")) {
+      return "build";
+    }
+    if (decision.includes("chat")) {
+      return "chat";
+    }
+  } catch {}
+
+  return isLikelyBuildIntent(taskInput) ? "build" : "chat";
 }
 
 function slugifyProjectName(value) {
@@ -845,6 +992,18 @@ async function createPlan(taskInput, memory) {
       });
     }
   } catch (error) {
+    const fallbackPlan = createSafeFallbackPlan(taskText);
+    if (fallbackPlan) {
+      studioEvents.emit("chat.message", {
+        id: crypto.randomUUID(),
+        role: "worker",
+        channel: "studio",
+        text: "The local planner was slow or unavailable, so LittleCoder switched to a safe built-in website fallback for this task.",
+        status: "done",
+      });
+      return fallbackPlan;
+    }
+
     if (error instanceof TaskError) {
       throw error;
     }
@@ -910,35 +1069,65 @@ class AgentEngine {
     return false;
   }
 
-  async runTask(task, context) {
-    this.emitTask("task.start", {
-      taskId: task.id,
-      input: typeof task.input === "string" ? task.input : JSON.stringify(task.input),
-      source: task.source,
+  async resolveMode(taskInput, context = {}) {
+    const requestedMode = normalizeInteractionMode(context.mode);
+    if (requestedMode === "chat" || requestedMode === "build") {
+      return {
+        requestedMode,
+        resolvedMode: requestedMode,
+      };
+    }
+
+    return {
+      requestedMode: "auto",
+      resolvedMode: await decideAutoMode(taskInput, this.memory),
+    };
+  }
+
+  async finishWithoutExecution(task, output, modeState) {
+    this.memory.lastTaskId = task.id;
+    this.updateTask(task, {
+      status: TASK_STATES.SUCCEEDED,
+      resultSummary: String(output || "").slice(0, 1000),
+      error: null,
     });
 
-    const quickReply = createQuickReply(task.input);
+    this.emitTask("task.done", {
+      taskId: task.id,
+      output,
+      activeProject: this.memory.currentProject,
+      requestedMode: modeState.requestedMode,
+      resolvedMode: modeState.resolvedMode,
+    });
+
+    return {
+      taskId: task.id,
+      status: TASK_STATES.SUCCEEDED,
+      attempts: task.attempts,
+      output,
+      plan: null,
+      activeProject: this.memory.currentProject,
+      requestedMode: modeState.requestedMode,
+      resolvedMode: modeState.resolvedMode,
+    };
+  }
+
+  async runChatTask(task, modeState) {
+    task.attempts += 1;
+    this.updateTask(task, {
+      status: TASK_STATES.PLANNING,
+      error: null,
+    });
+
+    const output = await createChatReply(task.input, this.memory);
+    this.memory.planningFailureStreak = 0;
+    return this.finishWithoutExecution(task, output, modeState);
+  }
+
+  async runBuildTask(task, context, modeState) {
+    const quickReply = createQuickReply(task.input, modeState.resolvedMode);
     if (quickReply) {
-      this.updateTask(task, {
-        status: TASK_STATES.SUCCEEDED,
-        resultSummary: quickReply.message,
-        error: null,
-      });
-
-      this.emitTask("task.done", {
-        taskId: task.id,
-        output: quickReply.message,
-        activeProject: this.memory.currentProject,
-      });
-
-      return {
-        taskId: task.id,
-        status: TASK_STATES.SUCCEEDED,
-        attempts: 0,
-        output: quickReply.message,
-        plan: null,
-        activeProject: this.memory.currentProject,
-      };
+      return this.finishWithoutExecution(task, quickReply.message, modeState);
     }
 
     while (task.attempts <= task.maxRetries) {
@@ -973,6 +1162,8 @@ class AgentEngine {
           taskId: task.id,
           output: execution.output || "",
           activeProject: this.memory.currentProject,
+          requestedMode: modeState.requestedMode,
+          resolvedMode: modeState.resolvedMode,
         });
 
         return {
@@ -982,6 +1173,8 @@ class AgentEngine {
           output: execution.output || "",
           plan,
           activeProject: this.memory.currentProject,
+          requestedMode: modeState.requestedMode,
+          resolvedMode: modeState.resolvedMode,
         };
       } catch (error) {
         const retryable = this.isRetryable(error);
@@ -1005,6 +1198,8 @@ class AgentEngine {
           this.emitTask("task.error", {
             taskId: task.id,
             error: error.message,
+            requestedMode: modeState.requestedMode,
+            resolvedMode: modeState.resolvedMode,
           });
           throw error;
         }
@@ -1014,6 +1209,23 @@ class AgentEngine {
     }
 
     throw new FatalTaskError("Task exhausted retries");
+  }
+
+  async runTask(task, context) {
+    const modeState = await this.resolveMode(task.input, context);
+    this.emitTask("task.start", {
+      taskId: task.id,
+      input: typeof task.input === "string" ? task.input : JSON.stringify(task.input),
+      source: task.source,
+      requestedMode: modeState.requestedMode,
+      resolvedMode: modeState.resolvedMode,
+    });
+
+    if (modeState.resolvedMode === "chat") {
+      return this.runChatTask(task, modeState);
+    }
+
+    return this.runBuildTask(task, context, modeState);
   }
 }
 

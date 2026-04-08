@@ -2,6 +2,10 @@ const crypto = require("crypto");
 const studioEvents = require("../studio/studio-events");
 
 function formatTaskResult(result) {
+  if (result.resolvedMode === "chat") {
+    return String(result.output || "LittleCoder is ready.").trim();
+  }
+
   return [
     `Project: ${result.activeProject || "none"}`,
     `Attempts: ${result.attempts}`,
@@ -26,6 +30,7 @@ function createUiAdapter({ engine }) {
     registerRoutes(app) {
       app.post("/api/chat", async (req, res) => {
         const text = String(req.body?.message || "").trim();
+        const mode = String(req.body?.mode || "auto").trim().toLowerCase();
         if (!text) {
           res.status(400).json({ ok: false, error: "Message is required" });
           return;
@@ -43,6 +48,7 @@ function createUiAdapter({ engine }) {
         try {
           const result = await engine.submit(text, {
             source: "studio-ui",
+            mode,
           });
 
           const reply = formatTaskResult(result);
@@ -59,6 +65,8 @@ function createUiAdapter({ engine }) {
             reply,
             activeProject: result.activeProject || null,
             taskId: result.taskId,
+            requestedMode: result.requestedMode || mode,
+            resolvedMode: result.resolvedMode || mode,
           });
         } catch (error) {
           const message = `Execution failed: ${error.message}`;

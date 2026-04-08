@@ -47,7 +47,9 @@ class StudioState {
   bindEvents() {
     studioEvents.on("task.start", (payload) => {
       this.state.currentTask = payload;
-      this.state.currentStep = "Planning task";
+      this.state.currentStep = payload?.resolvedMode === "chat"
+        ? "Chatting with local model"
+        : "Planning task";
       this.state.currentStepId = "";
       this.state.editorTyping = false;
       this.state.terminalBuffer = "";
