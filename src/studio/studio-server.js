@@ -173,10 +173,9 @@ function studioHtml() {
     }
     .mode-toolbar {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
     }
     .mode-label {
       font-size: 11px;
@@ -185,9 +184,10 @@ function studioHtml() {
       color: var(--soft);
     }
     .mode-buttons {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
-      flex-wrap: wrap;
+      width: 100%;
     }
     .mode-btn {
       border: 1px solid var(--line);
@@ -198,6 +198,9 @@ function studioHtml() {
       font: inherit;
       font-size: 12px;
       cursor: pointer;
+      width: 100%;
+      white-space: nowrap;
+      text-align: center;
     }
     .mode-btn.active {
       background: var(--accent);
@@ -750,6 +753,12 @@ function startStudioServer(options = {}) {
   }
 
   const app = express();
+  app.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   if (typeof options.registerRoutes === "function") {
