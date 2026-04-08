@@ -33,6 +33,10 @@ function buildPlannerPrompt(task, memory) {
   return `You are LittleCoder, a single AI software factory worker.
 Return JSON only.
 Do not wrap the JSON in markdown code fences.
+Do not add explanations before or after the JSON.
+Return either:
+- { "steps": [...] }
+- or just the steps array itself.
 
 Available tools:
 - project-create { "name": "projectName" }
@@ -60,39 +64,138 @@ Task:
 ${task}`;
 }
 
+function sanitizeJsonLikeText(text) {
+  return String(text || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'");
+}
+
+function removeTrailingCommas(text) {
+  return String(text || "").replace(/,\s*([}\]])/g, "$1");
+}
+
+function normalizeParsedPlan(parsed) {
+  if (Array.isArray(parsed)) {
+    return { steps: parsed };
+  }
+
+  if (parsed && Array.isArray(parsed.steps)) {
+    return { steps: parsed.steps };
+  }
+
+  if (parsed?.plan && Array.isArray(parsed.plan.steps)) {
+    return { steps: parsed.plan.steps };
+  }
+
+  if (parsed?.data && Array.isArray(parsed.data.steps)) {
+    return { steps: parsed.data.steps };
+  }
+
+  throw new Error('Planner JSON must contain a "steps" array');
+}
+
+function validatePlanShape(plan) {
+  if (!plan || !Array.isArray(plan.steps)) {
+    throw new Error('Planner JSON must contain a "steps" array');
+  }
+
+  for (const [index, step] of plan.steps.entries()) {
+    if (!step || typeof step !== "object") {
+      throw new Error(`Planner step ${index + 1} must be an object`);
+    }
+
+    if (!step.tool || typeof step.tool !== "string") {
+      throw new Error(`Planner step ${index + 1} is missing a tool`);
+    }
+
+    if (step.input != null && typeof step.input !== "object") {
+      throw new Error(`Planner step ${index + 1} input must be an object`);
+    }
+  }
+
+  return plan;
+}
+
 function parsePlanJson(rawText) {
-  const raw = String(rawText || "").trim();
+  const raw = sanitizeJsonLikeText(rawText).trim();
   if (!raw) {
     throw new Error("Planner returned empty response");
   }
 
-  const candidates = [raw];
+  const candidates = new Set([raw]);
 
   const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fencedMatch?.[1]) {
-    candidates.push(fencedMatch[1].trim());
+    candidates.add(fencedMatch[1].trim());
   }
 
   const firstBrace = raw.indexOf("{");
   const lastBrace = raw.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
-    candidates.push(raw.slice(firstBrace, lastBrace + 1).trim());
+    candidates.add(raw.slice(firstBrace, lastBrace + 1).trim());
+  }
+
+  const firstBracket = raw.indexOf("[");
+  const lastBracket = raw.lastIndexOf("]");
+  if (firstBracket >= 0 && lastBracket > firstBracket) {
+    candidates.add(raw.slice(firstBracket, lastBracket + 1).trim());
   }
 
   let lastError = null;
   for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate);
-      if (!parsed || !Array.isArray(parsed.steps)) {
-        throw new Error('Planner JSON must contain a "steps" array');
+    const attempts = [
+      candidate,
+      candidate.replace(/^json\s*/i, "").trim(),
+      removeTrailingCommas(candidate),
+      removeTrailingCommas(candidate.replace(/^json\s*/i, "").trim()),
+    ];
+
+    for (const attempt of attempts) {
+      if (!attempt) {
+        continue;
       }
-      return parsed;
-    } catch (error) {
-      lastError = error;
+
+      try {
+        const parsed = JSON.parse(attempt);
+        return validatePlanShape(normalizeParsedPlan(parsed));
+      } catch (error) {
+        lastError = error;
+      }
     }
   }
 
-  throw lastError || new Error("Planner response was not valid JSON");
+  const preview = raw.slice(0, 160).replace(/\s+/g, " ");
+  if (lastError) {
+    try {
+      lastError.message = `${lastError.message}. Response preview: ${preview}`;
+    } catch {}
+    throw lastError;
+  }
+
+  throw new Error(`Planner response was not valid JSON. Response preview: ${preview}`);
+}
+
+function formatPlanningError(error) {
+  const message = String(error?.message || "Planner response was not valid JSON");
+
+  if (
+    /Planner JSON must contain a "steps" array/i.test(message) ||
+    /Unexpected token/i.test(message) ||
+    /Planner response was not valid JSON/i.test(message)
+  ) {
+    return "The Ollama model returned a plan LittleCoder could not understand. Try again, or switch to a coding-focused Ollama model in setup.";
+  }
+
+  if (/timeout/i.test(message)) {
+    return "LittleCoder timed out while waiting for the local model. Make sure Ollama is running and try again.";
+  }
+
+  if (/Could not reach|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+    return "LittleCoder could not reach Ollama. Check that Ollama is running and the configured URL is correct.";
+  }
+
+  return `Brain planning failed: ${message}`;
 }
 
 async function createPlan(taskInput, memory) {
@@ -107,9 +210,7 @@ async function createPlan(taskInput, memory) {
 
   try {
     const parsed = JSON.parse(taskText);
-    if (parsed && Array.isArray(parsed.steps)) {
-      return parsed;
-    }
+    return validatePlanShape(normalizeParsedPlan(parsed));
   } catch {}
 
   if (!config.brain.enabled) {
@@ -130,7 +231,7 @@ async function createPlan(taskInput, memory) {
     const raw = String(response?.data?.response || "").trim();
     return parsePlanJson(raw);
   } catch (error) {
-    throw new RetryableTaskError(`Brain planning failed: ${error.message}`);
+    throw new RetryableTaskError(formatPlanningError(error));
   }
 }
 
@@ -143,7 +244,7 @@ class AgentEngine {
     this.memory = {
       currentProject: null,
       lastTaskId: null,
-    };
+    }
   }
 
   createTask(input, source = "system") {
@@ -262,3 +363,4 @@ class AgentEngine {
 }
 
 module.exports = AgentEngine;
+

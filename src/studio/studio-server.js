@@ -508,7 +508,7 @@ function studioHtml() {
 
         input.value = "";
       } catch (error) {
-        alert(error.message);
+        console.error(error.message);
       } finally {
         state.sending = false;
         input.disabled = false;
