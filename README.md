@@ -62,6 +62,9 @@ npm run setup
 npm start
 ```
 
+`qwen2.5-coder:7b-instruct-q4_K_M` is the default tested model.
+If you want to use a different Ollama model, pull that model instead and enter its exact name during setup.
+
 Then in Studio, try:
 - `create a simple website`
 - `create a todo website`
@@ -78,25 +81,27 @@ Then in Studio, try:
 
 ## Installation
 
-1. Install `Node.js`
-2. Install `Ollama`
-3. Start Ollama:
+Run LittleCoder with the default tested model:
 
 ```powershell
 ollama serve
-```
-
-4. Pull the default model:
-
-```powershell
 ollama pull qwen2.5-coder:7b-instruct-q4_K_M
+npm install
+npm run setup
+npm start
 ```
 
-5. Install LittleCoder dependencies:
+If you prefer a different Ollama model, use this flow instead:
 
 ```powershell
+ollama serve
+ollama pull your-model-name
 npm install
+npm run setup
+npm start
 ```
+
+During setup, enter the exact model name you pulled.
 
 ## Setup
 

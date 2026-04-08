@@ -8,6 +8,14 @@ No. Studio is the primary interface. Telegram is optional.
 
 It is designed for local-first use with Ollama. Internet access is not required for core operation once dependencies are installed.
 
+## Can I use a different Ollama model?
+
+Yes.
+
+`qwen2.5-coder:7b-instruct-q4_K_M` is the default tested model in the README, but you can use any Ollama model that is available locally.
+
+Pull the model you want, then enter that exact model name during setup.
+
 ## Where does it write files?
 
 Inside the factory workspace only.
