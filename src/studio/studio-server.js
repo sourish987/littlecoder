@@ -28,14 +28,16 @@ function studioHtml() {
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      height: 100vh;
+      overflow: hidden;
       font-family: Georgia, "Times New Roman", serif;
       background: radial-gradient(circle at top, #fff5dd, var(--bg));
       color: var(--ink);
     }
     .layout {
       display: grid;
-      grid-template-columns: 240px 1fr 380px;
-      grid-template-rows: 88px 1fr 220px;
+      grid-template-columns: 240px minmax(0, 1fr) 400px;
+      grid-template-rows: auto minmax(260px, 1fr) minmax(170px, 0.58fr);
       grid-template-areas:
         "top top top"
         "left center right"
@@ -43,6 +45,7 @@ function studioHtml() {
       gap: 12px;
       height: 100vh;
       padding: 12px;
+      overflow: hidden;
     }
     .panel {
       background: var(--panel);
@@ -60,12 +63,25 @@ function studioHtml() {
       border-bottom: 1px solid var(--line);
       background: rgba(191, 95, 47, 0.06);
     }
-    .top { grid-area: top; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .top {
+      grid-area: top;
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(360px, 460px);
+      align-items: start;
+      gap: 16px;
+    }
     .top-copy { display: flex; flex-direction: column; gap: 6px; }
     .top-copy small { color: var(--soft); }
-    .meta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .meta-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+      justify-self: end;
+    }
     .meta-card {
-      min-width: 140px;
+      min-width: 0;
       padding: 10px 12px;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -83,10 +99,10 @@ function studioHtml() {
       margin-top: 4px;
       font-size: 14px;
     }
-    .left { grid-area: left; }
-    .center { grid-area: center; }
-    .bottom { grid-area: bottom; }
-    .right { grid-area: right; }
+    .left { grid-area: left; min-height: 0; }
+    .center { grid-area: center; min-height: 0; }
+    .bottom { grid-area: bottom; min-height: 0; }
+    .right { grid-area: right; min-height: 0; }
     .content { padding: 12px 14px; height: calc(100% - 45px); overflow: auto; white-space: pre-wrap; }
     .panel-bar {
       display: flex;
@@ -153,6 +169,7 @@ function studioHtml() {
       display: grid;
       grid-template-rows: auto auto minmax(180px, 1fr) auto auto;
       height: calc(100% - 45px);
+      min-height: 0;
       padding: 12px;
       gap: 12px;
     }
@@ -161,6 +178,9 @@ function studioHtml() {
       color: var(--soft);
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-align: right;
+      max-width: 180px;
     }
     .mode-strip {
       display: flex;
@@ -351,10 +371,21 @@ function studioHtml() {
       0%, 49% { opacity: 1; }
       50%, 100% { opacity: 0; }
     }
+    @media (max-width: 1280px) {
+      .layout {
+        grid-template-columns: 220px minmax(0, 1fr) 360px;
+      }
+      .top {
+        grid-template-columns: 1fr;
+      }
+      .meta-row {
+        justify-self: stretch;
+      }
+    }
     @media (max-width: 1100px) {
       .layout {
         grid-template-columns: 1fr;
-        grid-template-rows: 92px 220px 260px 220px minmax(360px, 1fr);
+        grid-template-rows: auto 220px 260px 220px minmax(360px, 1fr);
         grid-template-areas:
           "top"
           "left"
@@ -363,8 +394,13 @@ function studioHtml() {
           "right";
       }
       .top {
-        align-items: flex-start;
-        flex-direction: column;
+        grid-template-columns: 1fr;
+      }
+      .meta-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .channel-summary {
+        max-width: none;
       }
     }
   </style>
@@ -515,6 +551,14 @@ function studioHtml() {
       return state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
     }
 
+    function modeButtonsMarkup() {
+      return [
+        '<button class="mode-btn" data-mode-btn="chat" type="button">Chat</button>',
+        '<button class="mode-btn" data-mode-btn="build" type="button">Build</button>',
+        '<button class="mode-btn" data-mode-btn="auto" type="button">Auto</button>'
+      ].join("");
+    }
+
     function routedMode(snapshot) {
       if (snapshot && snapshot.currentTask && snapshot.currentTask.requestedMode === "auto") {
         return snapshot.currentTask.resolvedMode || "";
@@ -560,6 +604,11 @@ function studioHtml() {
     }
 
     function updateModeUi(snapshot) {
+      const controls = document.getElementById("chatModeControls");
+      if (controls && controls.querySelectorAll("[data-mode-btn]").length !== 3) {
+        controls.innerHTML = modeButtonsMarkup();
+      }
+
       document.querySelectorAll("[data-mode-btn]").forEach((button) => {
         const mode = button.getAttribute("data-mode-btn");
         button.className = mode === state.mode ? "mode-btn active" : "mode-btn";
@@ -713,6 +762,7 @@ function studioHtml() {
 
     loadSavedMode();
     updateModeUi();
+    setInterval(() => updateModeUi(), 1000);
   </script>
 </body>
 </html>`;
