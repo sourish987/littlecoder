@@ -32,6 +32,7 @@ function ollamaGenerateUrl(rawUrl) {
 function buildPlannerPrompt(task, memory) {
   return `You are LittleCoder, a single AI software factory worker.
 Return JSON only.
+Do not wrap the JSON in markdown code fences.
 
 Available tools:
 - project-create { "name": "projectName" }
@@ -57,6 +58,41 @@ Output schema:
 
 Task:
 ${task}`;
+}
+
+function parsePlanJson(rawText) {
+  const raw = String(rawText || "").trim();
+  if (!raw) {
+    throw new Error("Planner returned empty response");
+  }
+
+  const candidates = [raw];
+
+  const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
+  }
+
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(raw.slice(firstBrace, lastBrace + 1).trim());
+  }
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (!parsed || !Array.isArray(parsed.steps)) {
+        throw new Error('Planner JSON must contain a "steps" array');
+      }
+      return parsed;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Planner response was not valid JSON");
 }
 
 async function createPlan(taskInput, memory) {
@@ -92,11 +128,7 @@ async function createPlan(taskInput, memory) {
     );
 
     const raw = String(response?.data?.response || "").trim();
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.steps)) {
-      throw new Error("Planner returned invalid step list");
-    }
-    return parsed;
+    return parsePlanJson(raw);
   } catch (error) {
     throw new RetryableTaskError(`Brain planning failed: ${error.message}`);
   }
