@@ -1,5 +1,9 @@
 # LittleCoder v0.1.0
 
+![Version](https://img.shields.io/badge/version-v0.1.0-bf5f2f)
+![License](https://img.shields.io/badge/license-MIT-2f8f4e)
+![Local First](https://img.shields.io/badge/local-first-1f1a17)
+
 Local AI Coding Worker with Visible Execution.
 
 Studio-first architecture.
@@ -15,6 +19,37 @@ Core ideas:
 - Factory workspace protects the system
 - Visual execution shows what the worker is doing
 - Remote channels narrate execution progress
+
+## Why LittleCoder
+
+Most AI coding tools feel invisible. You send a prompt and wait.
+
+LittleCoder is built around a different promise:
+- you can see the worker think through the task
+- you can watch files appear in a safe factory workspace
+- you can follow terminal output live
+- you can still control the worker remotely when needed
+
+The goal is simple: make AI software creation understandable, visible, and trustworthy.
+
+## Quick Start
+
+From the project folder:
+
+```powershell
+ollama serve
+ollama pull qwen2.5-coder:7b-instruct-q4_K_M
+npm install
+npm run setup
+npm start
+```
+
+Then in Studio, try:
+- `create a simple website`
+- `create a todo website`
+- `create a personal portfolio`
+- `create a calculator webpage`
+- `create a landing page`
 
 ## Installation
 
@@ -106,3 +141,34 @@ Inside Studio you can:
 - see code appear in the editor
 - watch terminal output live
 - review recent task activity
+
+## Project Status
+
+LittleCoder is currently in `v0.1.0` MVP stage.
+
+What is ready now:
+- Studio-first task control
+- local Ollama planning
+- safe factory workspace isolation
+- visible file and terminal execution
+- optional Telegram control with narrated progress
+
+What comes next:
+- smoother onboarding polish
+- stronger website generation quality
+- better remote channel support
+
+## Contributing
+
+Contributions are welcome. If you want to help:
+- open a bug report with reproduction steps
+- suggest a product improvement
+- send a pull request with a focused change
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project guidelines.
+
+## Security
+
+If you find a security issue, please avoid posting secrets publicly in issues.
+
+See [SECURITY.md](SECURITY.md) for the reporting process.
