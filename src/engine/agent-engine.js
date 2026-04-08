@@ -16,6 +16,8 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const MAX_CONVERSATION_TURNS = 12;
+
 function ollamaGenerateUrl(rawUrl) {
   const normalized = String(rawUrl || "").trim().replace(/\/+$/, "");
   if (!normalized) {
@@ -53,6 +55,9 @@ Rules:
 
 Current project:
 ${memory.currentProject || "none"}
+
+Recent conversation:
+${recentConversationBlock(memory)}
 
 Output schema:
 {
@@ -165,6 +170,125 @@ function createQuickReply(taskInput, mode = "auto") {
   return null;
 }
 
+function summarizeConversationText(text, maxLength = 220) {
+  const value = String(text || "").trim().replace(/\s+/g, " ");
+  if (!value) {
+    return "";
+  }
+
+  return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
+}
+
+function rememberConversation(memory, role, text, metadata = {}) {
+  const value = String(text || "").trim();
+  if (!value) {
+    return;
+  }
+
+  if (!Array.isArray(memory.conversation)) {
+    memory.conversation = [];
+  }
+
+  memory.conversation.push({
+    role,
+    text: value,
+    mode: metadata.mode || "",
+    source: metadata.source || "",
+    at: new Date().toISOString(),
+  });
+
+  if (memory.conversation.length > MAX_CONVERSATION_TURNS) {
+    memory.conversation = memory.conversation.slice(-MAX_CONVERSATION_TURNS);
+  }
+}
+
+function recentConversationBlock(memory) {
+  const items = Array.isArray(memory?.conversation) ? memory.conversation.slice(-8) : [];
+  if (!items.length) {
+    return "none";
+  }
+
+  return items
+    .map((entry) => {
+      const role = entry.role === "user" ? "User" : "Worker";
+      const mode = entry.mode ? ` [${entry.mode}]` : "";
+      return `${role}${mode}: ${summarizeConversationText(entry.text)}`;
+    })
+    .join("\n");
+}
+
+function getLastConversationTurn(memory, role) {
+  const items = Array.isArray(memory?.conversation) ? memory.conversation : [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (!role || items[index].role === role) {
+      return items[index];
+    }
+  }
+
+  return null;
+}
+
+function createContextualFollowUpReply(taskInput, memory, mode = "auto") {
+  const normalized = normalizeTaskText(taskInput);
+  const affirmative = new Set(["yes", "yeah", "yep", "ok", "okay", "sure", "do it", "go ahead"]);
+
+  if (!affirmative.has(normalized)) {
+    return null;
+  }
+
+  const lastWorker = getLastConversationTurn(memory, "worker");
+  if (!lastWorker) {
+    return null;
+  }
+
+  const lastWorkerText = normalizeTaskText(lastWorker.text);
+  if (
+    lastWorkerText.includes("build mode is for real execution") ||
+    lastWorkerText.includes("try one of these build tasks") ||
+    lastWorkerText.includes("switch to chat mode") ||
+    lastWorkerText.includes("switch to build mode")
+  ) {
+    return {
+      message: [
+        mode === "build"
+          ? "Great. Tell LittleCoder exactly what to build and it will execute it in the factory workspace."
+          : "Great. Tell LittleCoder exactly what to build, or switch to Build mode if you want to execute right away.",
+        "",
+        "Good examples:",
+        "- create a calculator webpage",
+        "- create a simple website",
+        "- create a todo website",
+      ].join("\n"),
+    };
+  }
+
+  if (
+    memory.currentProject &&
+    (
+      lastWorkerText.includes("project created:") ||
+      lastWorkerText.includes("file created:") ||
+      lastWorkerText.includes("file updated:")
+    )
+  ) {
+    return {
+      message: [
+        `Great. The current project is ${memory.currentProject}.`,
+        "",
+        mode === "build"
+          ? "Tell LittleCoder the next change to execute."
+          : "You can keep chatting about it here, or switch to Build mode and ask for the next change.",
+        "",
+        "Good follow-ups:",
+        "- explain what you built",
+        "- add buttons to the calculator",
+        "- improve the styling",
+      ].join("\n"),
+    };
+  }
+
+  return null;
+}
+
 async function generateModelText(prompt) {
   const response = await axios.post(
     ollamaGenerateUrl(config.brain.url),
@@ -189,11 +313,14 @@ If the user asks you to build or change files, explain that Build mode executes 
 Current project:
 ${memory.currentProject || "none"}
 
+Recent conversation:
+${recentConversationBlock(memory)}
+
 User message:
 ${message}`;
 }
 
-function buildAutoModePrompt(message) {
+function buildAutoModePrompt(message, memory) {
   return `You are deciding how LittleCoder should handle one user message.
 Return exactly one word:
 - BUILD
@@ -201,6 +328,9 @@ Return exactly one word:
 
 Choose BUILD only if the message is asking LittleCoder to create, edit, run, fix, or execute project work.
 Choose CHAT for greetings, questions, brainstorming, explanation, or normal conversation.
+
+Recent conversation:
+${recentConversationBlock(memory)}
 
 Message:
 ${message}`;
@@ -221,6 +351,11 @@ function formatChatFailure(error) {
 }
 
 async function createChatReply(taskInput, memory) {
+  const contextualReply = createContextualFollowUpReply(taskInput, memory, "chat");
+  if (contextualReply) {
+    return contextualReply.message;
+  }
+
   const quickReply = createQuickReply(taskInput, "chat");
   if (quickReply) {
     return quickReply.message;
@@ -1024,6 +1159,7 @@ class AgentEngine {
       currentProject: null,
       lastTaskId: null,
       planningFailureStreak: 0,
+      conversation: [],
     };
   }
 
@@ -1091,6 +1227,9 @@ class AgentEngine {
       resultSummary: String(output || "").slice(0, 1000),
       error: null,
     });
+    rememberConversation(this.memory, "worker", output, {
+      mode: modeState.resolvedMode,
+    });
 
     this.emitTask("task.done", {
       taskId: task.id,
@@ -1125,6 +1264,11 @@ class AgentEngine {
   }
 
   async runBuildTask(task, context, modeState) {
+    const contextualReply = createContextualFollowUpReply(task.input, this.memory, modeState.resolvedMode);
+    if (contextualReply) {
+      return this.finishWithoutExecution(task, contextualReply.message, modeState);
+    }
+
     const quickReply = createQuickReply(task.input, modeState.resolvedMode);
     if (quickReply) {
       return this.finishWithoutExecution(task, quickReply.message, modeState);
@@ -1152,6 +1296,9 @@ class AgentEngine {
           execution.context.activeProject || this.memory.currentProject;
         this.memory.lastTaskId = task.id;
         this.memory.planningFailureStreak = 0;
+        rememberConversation(this.memory, "worker", execution.output || "Task completed.", {
+          mode: modeState.resolvedMode,
+        });
 
         this.updateTask(task, {
           status: TASK_STATES.SUCCEEDED,
@@ -1195,6 +1342,9 @@ class AgentEngine {
         });
 
         if (!canRetry) {
+          rememberConversation(this.memory, "worker", error.message, {
+            mode: modeState.resolvedMode,
+          });
           this.emitTask("task.error", {
             taskId: task.id,
             error: error.message,
@@ -1213,6 +1363,10 @@ class AgentEngine {
 
   async runTask(task, context) {
     const modeState = await this.resolveMode(task.input, context);
+    rememberConversation(this.memory, "user", task.input, {
+      mode: modeState.requestedMode,
+      source: context.source || task.source,
+    });
     this.emitTask("task.start", {
       taskId: task.id,
       input: typeof task.input === "string" ? task.input : JSON.stringify(task.input),
