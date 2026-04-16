@@ -30,7 +30,7 @@
     "engine:restart": "node engine/gateway.js restart",
     "worker": "node telegram.js",
     "telegram": "node telegram.js",
-    "test": "node -e \"console.log('No tests configured yet')\""
+    "test": "node --test tests/**/*.test.js"
   },
   "keywords": [
     "ai",
