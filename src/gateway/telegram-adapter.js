@@ -37,6 +37,14 @@ async function safeReply(bot, chatId, text) {
   }
 }
 
+async function handleTaskExecutionError(bot, msg, stream, error) {
+  const chatId = msg?.chat?.id;
+  if (!chatId) return;
+  if (stream?.isCompleted()) return;
+
+  await safeReply(bot, chatId, formatFailure({ lastStep: "Task execution" }, error));
+}
+
 function formatCommand(input = {}) {
   const command = String(input.command || "").trim();
   const args = Array.isArray(input.args) ? input.args.map(String) : [];
@@ -365,10 +373,7 @@ function createTelegramAdapter({ engine }) {
             source: sourceTag,
           });
         } catch (error) {
-          const chatId = msg?.chat?.id;
-          if (chatId && (!stream || !stream.isCompleted())) {
-            await safeReply(bot, chatId, formatFailure({ lastStep: "Task execution" }, error));
-          }
+          await handleTaskExecutionError(bot, msg, stream, error);
         } finally {
           if (typing) clearInterval(typing);
           if (stream) {
