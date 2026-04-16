@@ -30,6 +30,7 @@ function write(level, message, meta = {}) {
 }
 
 const logger = {
+  safeStringify,
   info(message, meta) {
     write("info", message, meta);
   },
