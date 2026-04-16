@@ -339,20 +339,20 @@ function createTelegramAdapter({ engine }) {
       }
 
       bot.on("message", async (msg) => {
+        if (!msg || typeof msg.text !== "string" || !msg.text.trim()) {
+          return;
+        }
+
+        const chatId = msg.chat?.id;
+        if (!isAllowedTelegramUser(chatId)) {
+          await safeReply(bot, chatId, "Access denied for this Telegram account.");
+          return;
+        }
+
         let typing = null;
         let stream = null;
 
         try {
-          if (!msg || typeof msg.text !== "string" || !msg.text.trim()) {
-            return;
-          }
-
-          const chatId = msg.chat?.id;
-          if (!isAllowedTelegramUser(chatId)) {
-            await safeReply(bot, chatId, "Access denied for this Telegram account.");
-            return;
-          }
-
           await bot.sendChatAction(chatId, "typing");
           typing = setInterval(() => {
             bot.sendChatAction(chatId, "typing").catch(() => {});
@@ -365,7 +365,6 @@ function createTelegramAdapter({ engine }) {
             source: sourceTag,
           });
         } catch (error) {
-          const chatId = msg?.chat?.id;
           if (chatId && (!stream || !stream.isCompleted())) {
             await safeReply(bot, chatId, formatFailure({ lastStep: "Task execution" }, error));
           }
