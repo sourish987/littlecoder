@@ -371,9 +371,7 @@ function createTelegramAdapter({ engine }) {
           }
         } finally {
           if (typing) clearInterval(typing);
-          if (stream) {
-            stream.stop();
-          }
+          stream?.stop();
         }
       });
 
