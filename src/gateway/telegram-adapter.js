@@ -280,6 +280,44 @@ function createTaskStream({ bot, chatId, sourceTag }) {
   };
 }
 
+async function handleMessage(msg, bot, engine) {
+  if (!msg || typeof msg.text !== "string" || !msg.text.trim()) {
+    return;
+  }
+
+  const chatId = msg.chat?.id;
+  if (!isAllowedTelegramUser(chatId)) {
+    await safeReply(bot, chatId, "Access denied for this Telegram account.");
+    return;
+  }
+
+  let typing = null;
+  let stream = null;
+
+  try {
+    await bot.sendChatAction(chatId, "typing");
+    typing = setInterval(() => {
+      bot.sendChatAction(chatId, "typing").catch(() => {});
+    }, 3000);
+
+    const sourceTag = `telegram:${chatId}:${Date.now()}`;
+    stream = createTaskStream({ bot, chatId, sourceTag });
+
+    await engine.submit(msg.text, {
+      source: sourceTag,
+    });
+  } catch (error) {
+    if (chatId && (!stream || !stream.isCompleted())) {
+      await safeReply(bot, chatId, formatFailure({ lastStep: "Task execution" }, error));
+    }
+  } finally {
+    if (typing) clearInterval(typing);
+    if (stream) {
+      stream.stop();
+    }
+  }
+}
+
 function createTelegramAdapter({ engine }) {
   let bot = null;
   let unauthorizedCount = 0;
@@ -338,44 +376,7 @@ function createTelegramAdapter({ engine }) {
         return;
       }
 
-      bot.on("message", async (msg) => {
-        let typing = null;
-        let stream = null;
-
-        try {
-          if (!msg || typeof msg.text !== "string" || !msg.text.trim()) {
-            return;
-          }
-
-          const chatId = msg.chat?.id;
-          if (!isAllowedTelegramUser(chatId)) {
-            await safeReply(bot, chatId, "Access denied for this Telegram account.");
-            return;
-          }
-
-          await bot.sendChatAction(chatId, "typing");
-          typing = setInterval(() => {
-            bot.sendChatAction(chatId, "typing").catch(() => {});
-          }, 3000);
-
-          const sourceTag = `telegram:${chatId}:${Date.now()}`;
-          stream = createTaskStream({ bot, chatId, sourceTag });
-
-          await engine.submit(msg.text, {
-            source: sourceTag,
-          });
-        } catch (error) {
-          const chatId = msg?.chat?.id;
-          if (chatId && (!stream || !stream.isCompleted())) {
-            await safeReply(bot, chatId, formatFailure({ lastStep: "Task execution" }, error));
-          }
-        } finally {
-          if (typing) clearInterval(typing);
-          if (stream) {
-            stream.stop();
-          }
-        }
-      });
+      bot.on("message", (msg) => handleMessage(msg, bot, engine));
 
       bot.on("polling_error", async (error) => {
         const message = error?.message || String(error);
