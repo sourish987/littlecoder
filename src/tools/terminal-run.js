@@ -5,6 +5,8 @@ const factoryManager = require("../factory/factory-manager");
 const { RetryableTaskError, FatalTaskError } = require("../engine/task-errors");
 
 const ALLOWED_COMMANDS = new Set(["node", "npm", "npx"]);
+const FORBIDDEN_CHARS = /[&|;<>$\`\n\r\0]/;
+const WINDOWS_DRIVE_PATTERN = /^[a-zA-Z]:\\/;
 
 function normalizeInput(input) {
   const command = String(input.command || "").trim();
@@ -16,6 +18,25 @@ function normalizeInput(input) {
 
   if (!ALLOWED_COMMANDS.has(command)) {
     throw new FatalTaskError(`Command not allowed: ${command}`);
+  }
+
+  for (const arg of args) {
+    if (FORBIDDEN_CHARS.test(arg)) {
+      throw new FatalTaskError(`Argument contains forbidden characters: ${arg}`);
+    }
+    if (arg.includes("..")) {
+      throw new FatalTaskError(`Argument contains path traversal (..): ${arg}`);
+    }
+    if (arg.startsWith("/") || WINDOWS_DRIVE_PATTERN.test(arg)) {
+      throw new FatalTaskError(`Absolute paths are not allowed: ${arg}`);
+    }
+  }
+
+  if (command === "node") {
+    const forbiddenNodeFlags = new Set(["-e", "--eval", "-p", "--print", "-i", "--interactive", "-r", "--require", "--import"]);
+    if (args.some(arg => forbiddenNodeFlags.has(arg))) {
+      throw new FatalTaskError(`Forbidden node flags detected`);
+    }
   }
 
   return { command, args };
