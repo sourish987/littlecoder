@@ -1205,6 +1205,19 @@ class AgentEngine {
     return false;
   }
 
+  handlePlanningFailure(error, canRetry) {
+    const planningFailure = String(error.code || "").startsWith("PLANNER_");
+    if (!planningFailure) {
+      return;
+    }
+
+    this.memory.planningFailureStreak += 1;
+
+    if (!canRetry && this.memory.planningFailureStreak >= 2) {
+      error.message = `${error.message} ${modelSwitchSuggestion()}`;
+    }
+  }
+
   async resolveMode(taskInput, context = {}) {
     const requestedMode = normalizeInteractionMode(context.mode);
     if (requestedMode === "chat" || requestedMode === "build") {
@@ -1326,15 +1339,8 @@ class AgentEngine {
       } catch (error) {
         const retryable = this.isRetryable(error);
         const canRetry = retryable && task.attempts <= task.maxRetries;
-        const planningFailure = String(error.code || "").startsWith("PLANNER_");
 
-        if (planningFailure) {
-          this.memory.planningFailureStreak += 1;
-
-          if (!canRetry && this.memory.planningFailureStreak >= 2) {
-            error.message = `${error.message} ${modelSwitchSuggestion()}`;
-          }
-        }
+        this.handlePlanningFailure(error, canRetry);
 
         this.updateTask(task, {
           status: canRetry ? TASK_STATES.RETRYING : TASK_STATES.FAILED,
